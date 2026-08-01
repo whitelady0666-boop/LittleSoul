@@ -1,0 +1,15 @@
+[
+    {
+        "subject":"太阳",
+        "relation":"type",
+        "object":"恒星",
+        "confidence":1.0
+    },
+
+    {
+        "subject":"地球",
+        "relation":"type",
+        "object":"行星",
+        "confidence":1.0
+    }
+]

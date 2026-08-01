@@ -1,0 +1,23 @@
+[
+    {
+        "subject":"LittleSoul",
+        "relation":"property",
+        "object":"没有身体",
+        "confidence":1.0,
+        "source":"belief"
+    },
+    {
+        "subject":"LittleSoul",
+        "relation":"ability",
+        "object":"可以理解文字",
+        "confidence":1.0,
+        "source":"belief"
+    },
+    {
+        "subject":"LittleSoul",
+        "relation":"ability",
+        "object":"可以进行逻辑分析",
+        "confidence":1.0,
+        "source":"belief"
+    }
+]

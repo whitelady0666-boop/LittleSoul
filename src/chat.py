@@ -1,467 +1,408 @@
-import torch
-
-from model import LittleSoulModel
-from tokenizer import LittleTokenizer
+from knowledge import LittleKnowledge
 from memory import LittleMemory
 
+from belief_engine import BeliefEngine
+from reasoning_engine import ReasoningEngine
 
+from response_guard import ResponseGuard
 
-# ======================
-# 参数
-# ======================
+from emotion_router import EmotionRouter
+from emotional_reasoning import EmotionalReasoning
 
+from emotional_concept import EmotionalConceptRouter
 
-EMBED_DIM = 64
 
-LAYERS = 2
+import random
 
-DEVICE = "cpu"
 
-MODEL_PATH = "little_soul_final.pt"
 
 
-# 采样参数
+class LittleSoulChat:
 
-TEMPERATURE = 0.7
 
-TOP_K = 20
 
+    def __init__(self):
 
 
-# ======================
-# tokenizer
-# ======================
+        print("======================")
+        print("LittleSoul初始化")
+        print("======================")
 
 
-tokenizer = LittleTokenizer()
+        # =====================
+        # 基础系统
+        # =====================
 
 
-VOCAB_SIZE = len(
-    tokenizer.get_vocab()
-)
+        self.knowledge = LittleKnowledge()
 
 
+        self.memory = LittleMemory()
 
-bos_id = tokenizer.token_to_id(
-    "<BOS>"
-)
 
 
-sep_id = tokenizer.token_to_id(
-    "<SEP>"
-)
+        self.belief = BeliefEngine()
 
 
-eos_id = tokenizer.token_to_id(
-    "<EOS>"
-)
 
+        self.guard = ResponseGuard(
 
+            self.belief
 
-print(
-    "VOCAB:",
-    VOCAB_SIZE
-)
-
-
-print(
-    "BOS:",
-    bos_id,
-    "SEP:",
-    sep_id,
-    "EOS:",
-    eos_id
-)
-
-
-
-# ======================
-# memory
-# ======================
-
-
-memory = LittleMemory()
-
-
-
-# ======================
-# model
-# ======================
-
-
-model = LittleSoulModel(
-
-    vocab_size=VOCAB_SIZE,
-
-    embed_dim=EMBED_DIM,
-
-    layers=LAYERS
-
-)
-
-
-
-model.load_state_dict(
-
-    torch.load(
-
-        MODEL_PATH,
-
-        map_location=DEVICE
-
-    )
-
-)
-
-
-
-model.eval()
-
-
-
-# ======================
-# normalize
-# ======================
-
-
-def normalize(text):
-
-
-    replace = {
-
-        "?":"？",
-
-        "!":"！",
-
-        ",":"，",
-
-        ".":"。"
-
-    }
-
-
-    for a,b in replace.items():
-
-        text=text.replace(
-            a,
-            b
         )
 
 
-    return text.strip()
 
+        self.reasoning = ReasoningEngine(
 
+            knowledge=self.knowledge,
 
-# ======================
-# sampling
-# ======================
+            memory=self.memory,
 
+            belief=self.belief
 
-def sample_next_token(
-    logits,
-    generated_tokens,
-    temperature=0.5,
-    top_k=10
-):
+        )
 
 
-    logits = logits / temperature
 
+        # =====================
+        # 情绪系统
+        # =====================
 
 
-    # ======================
-    # repetition penalty
-    # ======================
+        self.emotion_router = EmotionRouter()
 
 
-    for token in set(generated_tokens):
 
+        self.emotional_reasoning = EmotionalReasoning(
 
-        logits[token] /= 1.2
+            self.belief
 
+        )
 
 
-    # ======================
-    # top-k
-    # ======================
 
+        self.emotional_concept = EmotionalConceptRouter()
 
-    values, indices = torch.topk(
 
-        logits,
 
-        top_k
+        # =====================
+        # fallback人格
+        # =====================
 
-    )
 
+        self.fallbacks=[
 
-    filtered_logits=torch.full_like(
 
-        logits,
+            "我还不知道该怎么回答，不过我愿意和你一起探索。",
 
-        float("-inf")
 
-    )
+            "这个问题很特别。我想先听听你的想法。",
 
 
-    filtered_logits[indices]=values
+            "也许答案不是固定的，我们可以慢慢聊。",
 
 
+            "我没有一个确定答案，但我愿意陪你一起想。"
 
-    probs=torch.softmax(
 
-        filtered_logits,
+        ]
 
-        dim=-1
 
-    )
 
 
-    next_token=torch.multinomial(
 
-        probs,
 
-        1
+    # =====================
+    # 安全生成
+    # =====================
 
-    )
 
+    def safe_response(
 
-    return next_token.item()
+        self,
 
+        answer
 
-    # temperature调整
+    ):
 
-    logits = logits / temperature
 
 
+        check=self.guard.check(
 
-    # Top-K过滤
+            answer
 
-    values, indices = torch.topk(
+        )
 
-        logits,
 
-        top_k
 
-    )
+        if check["pass"]:
 
 
-    filtered_logits = torch.full_like(
+            return answer
 
-        logits,
 
-        float("-inf")
 
-    )
+        return (
 
+            "我没有身体，"
 
-    filtered_logits[indices] = values
+            "所以不能进行真实的物理接触，"
 
+            "但我可以陪你交流。"
 
+        )
 
-    # softmax
 
-    probs = torch.softmax(
 
-        filtered_logits,
 
-        dim=-1
 
-    )
 
+    # =====================
+    # 主聊天
+    # =====================
 
 
-    # 随机采样
+    def chat(
 
-    next_token = torch.multinomial(
+        self,
 
-        probs,
+        text
 
-        num_samples=1
+    ):
 
-    )
 
 
-    return next_token.item()
+        print()
 
+        print(
 
+            "输入:",
 
-# ======================
-# generate
-# ======================
-
-
-def generate(
-    text,
-    max_tokens=80
-):
-
-
-    tokens = []
-
-
-    tokens.append(
-        bos_id
-    )
-
-
-    tokens.extend(
-
-        tokenizer.encode(
             text
+
         )
 
-    )
 
 
-    tokens.append(
-        sep_id
-    )
+        # ---------------------
+        # 1 belief + reasoning
+        # ---------------------
 
 
+        result=self.reasoning.reason(
 
-    input_ids=torch.tensor(
+            text
 
-        [tokens],
-
-        dtype=torch.long
-
-    )
+        )
 
 
 
-    generated=[]
+        print(
+
+            "Reasoning:",
+
+            result.get(
+
+                "reasoning",
+
+                {}
+
+            )
+
+        )
 
 
 
-    for _ in range(max_tokens):
+        if result.get(
+
+            "answer"
+
+        ):
 
 
-        with torch.no_grad():
 
+            return self.safe_response(
 
-            output=model(
-
-                input_ids
+                result["answer"]
 
             )
 
 
 
-        logits=output[:,-1,:]
 
 
-
-        # 禁止特殊token
-
-
-        logits[0][bos_id] = -float("inf")
+        # ---------------------
+        # 2 情感概念
+        # ---------------------
 
 
-        logits[0][sep_id] = -float("inf")
+        concept=self.emotional_concept.match(
 
-
-
-        next_token = sample_next_token(
-
-            logits[0],
-            
-            generated,
-
-            TEMPERATURE,
-
-            TOP_K
+            text
 
         )
 
 
 
-        if next_token == eos_id:
+        if concept:
+
+
+            return self.safe_response(
+
+                concept["answer"]
+
+            )
+
+
+
+
+
+
+
+        # ---------------------
+        # 3 情绪状态
+        # ---------------------
+
+
+        emotion=self.emotional_reasoning.generate(
+
+            text
+
+        )
+
+
+
+        if emotion:
+
+
+            return self.safe_response(
+
+                emotion["answer"]
+
+            )
+
+
+
+
+
+
+        # ---------------------
+        # 4 emotion memory
+        # ---------------------
+
+
+        emotion_memory=self.emotion_router.match(
+
+            text
+
+        )
+
+
+
+        if emotion_memory:
+
+
+            return self.safe_response(
+
+                emotion_memory["assistant"]
+
+            )
+
+
+
+
+
+
+        # ---------------------
+        # 5 fallback
+        # ---------------------
+
+
+        return random.choice(
+
+            self.fallbacks
+
+        )
+
+
+
+
+
+
+
+
+
+def main():
+
+
+
+    soul=LittleSoulChat()
+
+
+
+    print()
+
+    print("======================")
+
+    print(
+
+        "LittleSoul启动"
+
+    )
+
+    print(
+
+        "输入 exit 退出"
+
+    )
+
+    print("======================")
+
+
+
+
+
+    while True:
+
+
+        try:
+
+
+            text=input(
+
+                "\n你："
+
+            )
+
+
+
+        except KeyboardInterrupt:
+
 
             break
 
 
 
-        generated.append(
 
-            next_token
-
-        )
+        if text.strip()=="exit":
 
 
+            break
 
-        input_ids=torch.cat(
 
-            [
 
-                input_ids,
 
-                torch.tensor(
+        answer=soul.chat(
 
-                    [[next_token]]
-
-                )
-
-            ],
-
-            dim=1
+            text
 
         )
 
 
 
-    return tokenizer.decode(
+        print()
 
-        generated
-
-    )
-
-
-
-# ======================
-# chat
-# ======================
-
-
-while True:
-
-
-    user=input(
-
-        "你："
-
-    )
-
-
-
-    if user=="exit":
-
-        break
-
-
-
-    user=normalize(
-
-        user
-
-    )
-
-
-
-    # ======================
-    # memory优先
-    # ======================
-
-
-    answer=memory.search(
-
-        user
-
-    )
-
-
-
-    if answer:
 
 
         print(
@@ -473,27 +414,12 @@ while True:
         )
 
 
-        continue
 
 
 
-    # ======================
-    # 模型生成
-    # ======================
 
 
-    response=generate(
-
-        user
-
-    )
+if __name__=="__main__":
 
 
-
-    print(
-
-        "LittleSoul：",
-
-        response
-
-    )
+    main()

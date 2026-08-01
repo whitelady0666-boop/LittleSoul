@@ -1,0 +1,19 @@
+[
+    {
+        "concept": "手",
+        "category": "body_part",
+        "parent": "身体"
+    },
+
+    {
+        "concept": "心跳",
+        "category": "body_function",
+        "parent": "身体"
+    },
+
+    {
+        "concept": "吃饭",
+        "category": "body_action",
+        "parent": "身体"
+    }
+]

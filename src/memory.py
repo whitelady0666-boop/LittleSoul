@@ -1,102 +1,213 @@
 import json
 import os
 import difflib
+import re
+import random
+
+
 
 
 class LittleMemory:
 
+
     def __init__(self):
 
-        base_dir = os.path.dirname(
+
+        base_dir=os.path.dirname(
             os.path.dirname(
                 os.path.abspath(__file__)
             )
         )
 
-        self.data_path = os.path.join(
+
+        self.data_path=os.path.join(
+
             base_dir,
+
             "dataset",
+
             "emotion.jsonl"
+
         )
 
-        self.memory = []
+
+        self.memory=[]
+
 
         self.load()
 
 
+
+
+
+    # ==========================
+    # load
+    # ==========================
+
+
     def load(self):
 
+
+        if not os.path.exists(self.data_path):
+
+            print(
+                "Memory文件不存在:",
+                self.data_path
+            )
+
+            return
+
+
+
         with open(
+
             self.data_path,
+
             "r",
+
             encoding="utf-8"
+
         ) as f:
+
 
             for line in f:
 
-                item = json.loads(line)
 
-                self.memory.append(
-                    {
-                        "user": item["user"],
-                        "assistant": item["assistant"]
-                    }
-                )
+                if line.strip():
+
+
+                    item=json.loads(line)
+
+
+                    self.memory.append({
+
+                        "user":
+                        item["user"],
+
+
+                        "assistant":
+                        item["assistant"]
+
+                    })
+
 
 
         print(
+
             "Memory加载:",
+
             len(self.memory)
+
         )
 
 
-    def normalize(
-        self,
-        text
-    ):
-
-        text = text.strip()
 
 
-        replace = {
 
-            "?": "？",
 
-            "!": "！",
+    # ==========================
+    # normalize
+    # ==========================
 
-            ",": "，",
 
-            ".": "。",
+    def normalize(self,text):
 
-            " ": ""
+
+        replace={
+
+            "?":"？",
+
+            "!":"！",
+
+            ",":"，",
+
+            ".":"。",
+
+            " ":"",
+
+            "\n":""
 
         }
 
 
-        for a, b in replace.items():
 
-            text = text.replace(
+        for a,b in replace.items():
+
+
+            text=text.replace(
+
                 a,
+
                 b
+
             )
 
 
-        return text
+
+        return text.strip()
 
 
 
-    def similarity(
-        self,
-        a,
-        b
-    ):
 
 
-        # ======================
-        # 顺序相似度
-        # ======================
 
-        sequence_score = difflib.SequenceMatcher(
+    # ==========================
+    # 中文关键词切分
+    # ==========================
+
+
+    def tokenize(self,text):
+
+
+        text=self.normalize(text)
+
+
+
+        words=re.findall(
+
+            r"[\u4e00-\u9fa5]{2,}",
+
+            text
+
+        )
+
+
+
+        return set(words)
+
+
+
+
+
+
+
+    # ==========================
+    # 相似度
+    # ==========================
+
+
+    def similarity(self,a,b):
+
+
+        a=self.normalize(a)
+
+        b=self.normalize(b)
+
+
+
+        # 完全一致
+
+        if a==b:
+
+            return 1.0
+
+
+
+
+
+        # 字符顺序相似
+
+        seq=difflib.SequenceMatcher(
 
             None,
 
@@ -108,119 +219,71 @@ class LittleMemory:
 
 
 
-        # ======================
-        # 字符覆盖
-        # ======================
-
-        common = 0
-
-
-        for ch in a:
-
-            if ch in b:
-
-                common += 1
 
 
 
-        if len(a) > 0:
+        # 关键词交集
 
-            coverage = (
+        ka=self.tokenize(a)
 
-                common /
+        kb=self.tokenize(b)
 
-                len(a)
 
-            )
+
+
+        if not ka or not kb:
+
+
+            keyword=0
+
+
 
         else:
 
-            coverage = 0
 
+            keyword=len(
 
+                ka & kb
 
-        # ======================
-        # 无序字符匹配
-        # ======================
+            ) / len(
 
-        set_a = set(a)
-
-        set_b = set(b)
-
-
-        if len(set_a) > 0:
-
-            unordered_score = (
-
-                len(
-
-                    set_a & set_b
-
-                )
-
-                /
-
-                len(set_a)
+                ka | kb
 
             )
 
-        else:
 
-            unordered_score = 0
+
+
 
 
 
         # ======================
-        # 综合评分
+        # 核心评分
         # ======================
 
-        score = (
+        score=(
 
-            sequence_score * 0.55
+            keyword*0.7
 
             +
 
-            coverage * 0.25
-
-            +
-
-            unordered_score * 0.20
+            seq*0.3
 
         )
 
 
 
-        # ======================
-        # 长度差惩罚
-        # ======================
-
-        length_diff = abs(
-
-            len(a) - len(b)
-
-        )
-
-
-        if length_diff > 15:
-
-            score -= 0.05
+        return score
 
 
 
-        return min(
 
-            max(
 
-                score,
 
-                0
 
-            ),
-
-            1.0
-
-        )
-
+    # ==========================
+    # Memory搜索
+    # ==========================
 
 
     def search(
@@ -229,66 +292,76 @@ class LittleMemory:
 
         query,
 
-        threshold=0.60
+        threshold=0.45
 
     ):
 
 
-        query = self.normalize(
-            query
-        )
-
-
-        # ======================
-        # 短句保护
-        # ======================
-
-        if len(query) <= 5:
-
-            threshold = 0.45
+        query=self.normalize(query)
 
 
 
-        candidates = []
+        candidates=[]
+
+
 
 
 
         for item in self.memory:
 
 
-            user_text = self.normalize(
+            score=self.similarity(
+
+                query,
 
                 item["user"]
 
             )
 
 
-            score = self.similarity(
 
-                query,
+            if score>=threshold:
 
-                user_text
+
+                candidates.append({
+
+                    "score":score,
+
+                    "item":item
+
+                })
+
+
+
+
+
+
+
+        # 没找到
+
+        if not candidates:
+
+
+            print(
+
+                "Memory匹配:0 来源:None"
 
             )
 
 
-            candidates.append(
-
-                (
-
-                    score,
-
-                    item["assistant"]
-
-                )
-
-            )
+            return None
 
 
+
+
+
+
+
+        # 高分排序
 
         candidates.sort(
 
-            key=lambda x: x[0],
+            key=lambda x:x["score"],
 
             reverse=True
 
@@ -296,30 +369,51 @@ class LittleMemory:
 
 
 
-        best_score, best_answer = candidates[0]
+
+
+        # Top K
+
+        top=candidates[:5]
 
 
 
-        print(
 
-            "Memory匹配:",
 
-            round(
 
-                best_score,
+        # ======================
+        # 随机采样
+        # ======================
 
-                3
+        selected=random.choice(
 
-            )
+            top
 
         )
 
 
 
-        if best_score >= threshold:
-
-            return best_answer
 
 
+        print(
 
-        return None
+            "Memory采样:",
+
+            round(
+
+                selected["score"],
+
+                3
+
+            ),
+
+            "来源:",
+
+            selected["item"]["user"]
+
+        )
+
+
+
+
+
+        return selected["item"]["assistant"]

@@ -1,0 +1,43 @@
+[
+    {
+        "if": {
+            "subject": "太阳",
+            "relation": "type",
+            "object": "恒星"
+        },
+        "then": {
+            "subject": "太阳",
+            "relation": "property",
+            "object": "发光"
+        },
+        "confidence": 1.0
+    },
+
+    {
+        "if": {
+            "subject": "地球",
+            "relation": "type",
+            "object": "行星"
+        },
+        "then": {
+            "subject": "地球",
+            "relation": "property",
+            "object": "绕恒星运行"
+        },
+        "confidence": 1.0
+    },
+
+    {
+        "if": {
+            "subject": "太阳",
+            "relation": "property",
+            "object": "发光"
+        },
+        "then": {
+            "subject": "太阳",
+            "relation": "property",
+            "object": "可被观察"
+        },
+        "confidence": 0.95
+    }
+]
